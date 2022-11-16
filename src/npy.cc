@@ -100,10 +100,6 @@ Npy::Npy(std::istream &Stream) {
     throw std::runtime_error("Only little endian is supported atm");
 
   parseHeaderData(parseHeader(Stream), DType, FortranOrder, Shape);
-
-  if (FortranOrder)
-    throw std::runtime_error("FortranOrder is not supported");
-
   populateArrayData(Stream);
 }
 

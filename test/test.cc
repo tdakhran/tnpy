@@ -23,19 +23,25 @@ template <typename T> struct TestConfiguration {
   std::string const PythonData;
   Npy::shape_t const Shape;
   std::vector<T> const Data;
+  bool const FortranOrder;
 };
 
 std::filesystem::path generateNpyFile(std::string const &PythonData,
-                                      std::string const &PythonDtype) {
+                                      std::string const &PythonDtype,
+                                      bool const FortranOrder) {
   auto const FileName = std::filesystem::temp_directory_path() /
                         ("tnpy.test." + std::to_string(rand()) + ".npy");
-  if (std::filesystem::exists(FileName))
-    std::filesystem::remove(FileName);
-  std::string const PythonCode =
-      "import numpy; numpy.save('" + FileName.string() + "',numpy.array(" +
-      PythonData + ",numpy.dtype('" + PythonDtype + "')))";
-  std::string const Command = "python3 -c \"" + PythonCode + "\"";
-  if (system(Command.c_str()) or not std::filesystem::exists(FileName))
+  std::array<char, 256> Command;
+  if (auto Result = std::snprintf(
+          Command.data(), Command.size(),
+          "python3 -c \"import numpy; "
+          "numpy.save('%s',numpy.array(%s,numpy.dtype('%s'),order='%s'))\"",
+          FileName.c_str(), PythonData.c_str(), PythonDtype.c_str(),
+          FortranOrder ? "F" : "C");
+      Result < 0 or Result >= static_cast<decltype(Result)>(Command.size())) {
+    throw std::runtime_error("Failed to assemble command");
+  }
+  if (system(Command.data()) or not std::filesystem::exists(FileName))
     throw std::runtime_error("Test file was not created");
 
   return FileName;
@@ -81,13 +87,17 @@ template <typename T> constexpr std::string_view cppTypeToDtype() {
 template <typename Type> bool isFailed() {
   auto const DtypeStr = std::string(cppTypeToDtype<Type>());
   for (auto const &Config : {
-           TestConfiguration<Type>{DtypeStr, "1", {1}, {1}},
-           TestConfiguration<Type>{DtypeStr, "[]", {0}, {}},
-           TestConfiguration<Type>{DtypeStr, "[[]]", {1, 0}, {}},
-           TestConfiguration<Type>{DtypeStr, "[[1], [1]]", {2, 1}, {1, 1}},
+           TestConfiguration<Type>{DtypeStr, "1", {1}, {1}, false},
+           TestConfiguration<Type>{DtypeStr, "[]", {0}, {}, false},
+           TestConfiguration<Type>{DtypeStr, "[[]]", {1, 0}, {}, false},
+           TestConfiguration<Type>{
+               DtypeStr, "[[1], [1]]", {2, 1}, {1, 1}, false},
+           TestConfiguration<Type>{
+               DtypeStr, "[[1, 1], [0, 1]]", {2, 2}, {1, 0, 1, 1}, true},
        }) {
 
-    auto FileName = generateNpyFile(Config.PythonData, Config.PythonDType);
+    auto FileName = generateNpyFile(Config.PythonData, Config.PythonDType,
+                                    Config.FortranOrder);
     std::ifstream Stream(FileName, std::ios::binary);
     auto NpyInstance = Npy(Stream);
     Stream.close();
