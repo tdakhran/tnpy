@@ -1,0 +1,5 @@
+enable_testing()
+message(STATUS "Configuring tests")
+add_executable(test_tnpy ${CMAKE_CURRENT_SOURCE_DIR}/test.cc)
+target_link_libraries(test_tnpy tnpy)
+add_test(NAME test_tnpy COMMAND test_tnpy)
