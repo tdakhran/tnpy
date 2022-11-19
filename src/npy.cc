@@ -1,31 +1,25 @@
 #include "npy.hpp"
+#include "numpy_utils.hpp"
 
 #include <cstring>
-#include <numeric>
 #include <regex>
 
 using namespace tnpy;
 
 namespace {
+
 std::string parseHeader(std::istream &Stream) {
-  struct {
-    uint64_t Magic : 48;
-    uint8_t Major;
-    uint8_t Minor;
-  } MagicAndVersion;
+  utils::MagicAndVersion MagicAndVersion;
 
   Stream.read(reinterpret_cast<char *>(&MagicAndVersion),
               sizeof(MagicAndVersion));
 
-  if (MagicAndVersion.Magic != 0x59504d554e93)
-    throw std::runtime_error("Invalid magic value");
-
-  if (MagicAndVersion.Major != 1)
-    throw std::runtime_error("Only version 1.x supported");
+  MagicAndVersion.validate();
 
   uint16_t HeaderLen;
   Stream.read(reinterpret_cast<char *>(&HeaderLen), sizeof(HeaderLen));
-  if ((sizeof(MagicAndVersion) + sizeof(HeaderLen) + HeaderLen) & 63)
+  if ((sizeof(utils::MagicAndVersion) + sizeof(HeaderLen) + HeaderLen) %
+      utils::Header::Alignment)
     throw std::runtime_error("Invalid padding");
 
   std::string HeaderData(HeaderLen, '0');
@@ -34,48 +28,8 @@ std::string parseHeader(std::istream &Stream) {
   return HeaderData;
 }
 
-Npy::dtype_t parseDType(std::string const &Value) {
-  for (auto const &[Str, Result] : {
-           std::pair("b1", Npy::dtype_t(bool())),
-           std::pair("f4", Npy::dtype_t(float())),
-           std::pair("f8", Npy::dtype_t(double())),
-           std::pair("i1", Npy::dtype_t(int8_t())),
-           std::pair("i2", Npy::dtype_t(int16_t())),
-           std::pair("i4", Npy::dtype_t(int32_t())),
-           std::pair("i8", Npy::dtype_t(int64_t())),
-           std::pair("u1", Npy::dtype_t(uint8_t())),
-           std::pair("u2", Npy::dtype_t(uint16_t())),
-           std::pair("u4", Npy::dtype_t(uint32_t())),
-           std::pair("u8", Npy::dtype_t(uint64_t())),
-       })
-    if (Str == Value)
-      return Result;
-
-  throw std::runtime_error("data type " + Value + " not understood");
-}
-
-Npy::shape_t parseShape(std::string const &Value) {
-  Npy::shape_t Shape;
-  std::regex const NumberRegex("[0-9]+");
-
-  std::transform(std::sregex_iterator(begin(Value), end(Value), NumberRegex),
-                 std::sregex_iterator(), std::back_inserter(Shape),
-                 [](auto &&Number) { return std::stoul(Number.str()); });
-
-  return Shape.empty() ? Npy::shape_t{1} : Shape;
-}
-
-bool parseFortranOrder(std::string_view const &Value) {
-  for (auto const &[StrValue, BoolValue] :
-       {std::pair{"True", true}, std::pair{"False", false}})
-    if (Value == StrValue)
-      return BoolValue;
-
-  throw std::runtime_error("Failed to parse fortran_order");
-}
-
 void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
-                     Npy::Order_t &Order, Npy::shape_t &Shape) {
+                     Npy::DataOrder &Order, Npy::shape_t &Shape) {
   std::regex const BaseRegex(
       R"(\{'descr':\s'[|<]([bfiu][1248])',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s}\s*)");
 
@@ -83,10 +37,9 @@ void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
   if (!std::regex_match(HeaderData, BaseMatch, BaseRegex))
     throw std::runtime_error("Failed to parse header data");
 
-  DataType = parseDType(BaseMatch[1].str());
-  Order = parseFortranOrder(BaseMatch[2].str()) ? Npy::Order_t::Fortran
-                                                : Npy::Order_t::C;
-  Shape = parseShape(BaseMatch[3].str());
+  DataType = utils::DType::fromString(BaseMatch[1].str());
+  Order = utils::DataOrder::fromString(BaseMatch[2].str());
+  Shape = utils::Shape()(BaseMatch[3].str());
 }
 
 bool isLittleEndian() {
@@ -114,7 +67,7 @@ Npy::Npy(std::istream &Stream) {
   populateArrayData(Stream);
 }
 
-Npy::Order_t Npy::order() const { return Order; }
+Npy::DataOrder Npy::order() const { return Order; }
 
 Npy::dtype_t Npy::dtype() const { return DType; }
 
@@ -144,3 +97,36 @@ bool Npy::operator==(const Npy &Rhs) const {
 }
 
 bool Npy::operator!=(const Npy &Rhs) const { return not operator==(Rhs); }
+
+std::ostream &tnpy::operator<<(std::ostream &Stream, tnpy::Npy const &Object) {
+  utils::MagicAndVersion MagicAndVersion;
+  Stream.write(reinterpret_cast<const char *>(&MagicAndVersion),
+               sizeof(MagicAndVersion));
+  auto const [ElementsCount, ElementSize] =
+      calculateSizes(Object.shape(), Object.dtype());
+  auto const EndianChar =
+      static_cast<std::underlying_type_t<utils::DType::ByteOrder>>(
+          utils::DType().getByteOrder(Object.dtype()));
+
+  // clang-format off
+  auto DictStr = std::string("{")
+        + "'descr': '" + EndianChar + utils::DType::toString(Object.dtype()) + "', "
+        + "'fortran_order': " + (Object.order() == Npy::DataOrder::Fortran ? "True" : "False") + ", "
+        + "'shape': (" + utils::Shape()(Object.shape()) + "), "
+        + "}\n";
+  // clang-format on
+
+  while ((sizeof(MagicAndVersion) + sizeof(uint16_t) + DictStr.size()) %
+         utils::Header::Alignment)
+    DictStr.push_back(' ');
+
+  uint16_t const PaddedDictLength = DictStr.size();
+
+  Stream.write(reinterpret_cast<const char *>(&PaddedDictLength),
+               sizeof(PaddedDictLength));
+  Stream.write(DictStr.data(), PaddedDictLength);
+  Stream.write(reinterpret_cast<const char *>(Object.ptr()),
+               ElementSize * ElementsCount);
+
+  return Stream;
+}

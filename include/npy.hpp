@@ -15,22 +15,23 @@ public:
   using shape_t = std::vector<uint32_t>;
   using buffer_t = std::unique_ptr<std::byte, std::function<void(void *)>>;
 
-  enum class Order_t { // NOLINT
-    C,
-    Fortran,
+  // https://numpy.org/doc/stable/reference/generated/numpy.array.html?highlight=array#numpy-array
+  enum class DataOrder : char { // NOLINT
+    C = 'C',
+    Fortran = 'F',
   };
 
   explicit Npy(std::istream &Stream);
 
   template <typename Type>
   Npy(shape_t const &Shape, std::vector<Type> const &Data,
-      Order_t Order = Order_t::C)
+      DataOrder Order = DataOrder::C)
       : DType(dtype_t(Type())), Shape(Shape), Order(Order) {
     allocateBuffer();
     std::copy(begin(Data), end(Data), reinterpret_cast<Type *>(Buffer.get()));
   }
 
-  Order_t order() const;
+  DataOrder order() const;
 
   dtype_t dtype() const;
 
@@ -55,8 +56,9 @@ private:
 private:
   dtype_t DType;
   shape_t Shape;
-  Order_t Order;
+  DataOrder Order;
   buffer_t Buffer;
 };
 
+std::ostream &operator<<(std::ostream &, tnpy::Npy const &);
 } // namespace tnpy

@@ -1,5 +1,5 @@
 # TNPY
-tnpy is a C++17 library for reading [numpy .npy](https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html#module-numpy.lib.format) files.
+tnpy is a C++17 library for reading and writing [numpy .npy](https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html#module-numpy.lib.format) files.
 
 ## Compilation
 ### Prerequisites
@@ -17,18 +17,29 @@ docker# mkdir /tmp/build && cd /tmp/build && cmake /mnt && make -j4
 ## Usage
 ```cpp
 #include "npy.hpp"
+
 #include <fstream>
 
 int main() {
-  std::ifstream File("example.npy");
-  auto Npy = tnpy::Npy(File);
+  {
+    // read
+    std::ifstream File("input.npy");
+    tnpy::Npy InNpy(File);
+    std::vector<uint32_t> const Shape = InNpy.shape();
+    tnpy::Npy::DataOrder const Order  = InNpy.order();
+    tnpy::Npy::dtype_t const DType    = InNpy.dtype();
+  }
 
-  std::vector<uint32_t> const Shape =          Npy.shape();
-  bool const                  isFortranOrder = Npy.isFortranOrder();
-  tnpy::Npy::dtype_t          DType =          Npy.dtype();
+  {
+    // write
+    std::vector<uint32_t> const Shape{2, 1};
+    std::vector<float> const    Data{1., 1.};
+    tnpy::Npy OutNpy(Shape, Data);
+    std::ofstream("output.npy") << OutNpy;
+  }
 }
 ```
 
 ## Known issues
 * Only subset of python data types is supported
-* big endian npy files are not supported
+* big endian is not supported
