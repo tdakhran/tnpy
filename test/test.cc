@@ -47,19 +47,6 @@ std::filesystem::path generateNpyFile(std::string const &PythonData,
   return FileName;
 }
 
-template <typename T>
-bool compare(Npy const &Instance, Npy::shape_t const &Shape,
-             std::vector<T> const &Data, Npy::Order_t const Order) {
-  if (Shape != Instance.shape())
-    return false;
-  if (not std::equal(begin(Data), end(Data), Instance.data<T>()))
-    return false;
-  if (Order != Instance.order())
-    return false;
-
-  return true;
-}
-
 template <typename T> constexpr std::string_view cppTypeToDtype() {
   if constexpr (std::is_same_v<T, bool>)
     return "b1";
@@ -106,11 +93,11 @@ template <typename Type> bool isFailed() {
     auto FileName =
         generateNpyFile(Config.PythonData, Config.PythonDType, Config.Order);
     std::ifstream Stream(FileName, std::ios::binary);
-    auto NpyInstance = Npy(Stream);
+    auto const NpyFromPy = Npy(Stream);
     Stream.close();
     std::filesystem::remove(FileName);
 
-    if (not compare(NpyInstance, Config.Shape, Config.Data, Config.Order)) {
+    if (NpyFromPy != Npy(Config.Shape, Config.Data, Config.Order)) {
       failure<Type>();
       return true;
     }

@@ -22,6 +22,14 @@ public:
 
   explicit Npy(std::istream &Stream);
 
+  template <typename Type>
+  Npy(shape_t const &Shape, std::vector<Type> const &Data,
+      Order_t Order = Order_t::C)
+      : DType(dtype_t(Type())), Shape(Shape), Order(Order) {
+    allocateBuffer();
+    std::copy(begin(Data), end(Data), reinterpret_cast<Type *>(Buffer.get()));
+  }
+
   Order_t order() const;
 
   dtype_t dtype() const;
@@ -37,8 +45,12 @@ public:
 
   shape_t const &shape() const;
 
+  bool operator==(const Npy &Rhs) const;
+  bool operator!=(const Npy &Rhs) const;
+
 private:
   void populateArrayData(std::istream &Stream);
+  size_t allocateBuffer();
 
 private:
   dtype_t DType;

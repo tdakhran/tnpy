@@ -1,5 +1,6 @@
 #include "npy.hpp"
 
+#include <cstring>
 #include <numeric>
 #include <regex>
 
@@ -94,6 +95,15 @@ bool isLittleEndian() {
   return *(reinterpret_cast<const std::byte *>(&Value)) == std::byte(1);
 }
 
+std::pair<size_t, size_t> calculateSizes(Npy::shape_t const &Shape,
+                                         Npy::dtype_t const &DType) {
+  auto const ElementsCount = std::accumulate(
+      begin(Shape), end(Shape), 1, std::multiplies<Npy::shape_t::value_type>());
+  auto const ElementSize =
+      std::visit([](auto &&Arg) -> size_t { return sizeof(Arg); }, DType);
+  return {ElementsCount, ElementSize};
+}
+
 } // namespace
 
 Npy::Npy(std::istream &Stream) {
@@ -113,13 +123,24 @@ void const *Npy::ptr() const { return reinterpret_cast<void *>(Buffer.get()); }
 Npy::shape_t const &Npy::shape() const { return Shape; }
 
 void Npy::populateArrayData(std::istream &Stream) {
-  auto const ElementSize =
-      std::visit([](auto &&Arg) -> size_t { return sizeof(Arg); }, DType);
-  auto const ElementsCount = std::accumulate(
-      begin(Shape), end(Shape), 1, std::multiplies<shape_t::value_type>());
-  auto const SizeBytes = ElementsCount * ElementSize;
-  Buffer = buffer_t(
-      reinterpret_cast<std::byte *>(std::aligned_alloc(ElementSize, SizeBytes)),
-      std::free);
+  size_t SizeBytes = allocateBuffer();
   Stream.read(reinterpret_cast<char *>(Buffer.get()), SizeBytes);
 }
+
+size_t Npy::allocateBuffer() {
+  auto const [ElementsCount, ElementSize] = calculateSizes(Shape, DType);
+  auto const SizeBytes = ElementsCount * ElementSize;
+  Buffer = Npy::buffer_t(
+      reinterpret_cast<std::byte *>(std::aligned_alloc(ElementSize, SizeBytes)),
+      std::free);
+  return SizeBytes;
+}
+
+bool Npy::operator==(const Npy &Rhs) const {
+  auto const [ElementsCount, ElementSize] = calculateSizes(Shape, DType);
+  return std::tie(DType, Order, Shape) ==
+             std::tie(Rhs.DType, Rhs.Order, Rhs.Shape) &&
+         std::memcmp(ptr(), Rhs.ptr(), ElementsCount * ElementSize) == 0;
+}
+
+bool Npy::operator!=(const Npy &Rhs) const { return not operator==(Rhs); }
