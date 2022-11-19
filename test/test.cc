@@ -23,12 +23,12 @@ template <typename T> struct TestConfiguration {
   std::string const PythonData;
   Npy::shape_t const Shape;
   std::vector<T> const Data;
-  bool const FortranOrder;
+  Npy::Order_t const Order;
 };
 
 std::filesystem::path generateNpyFile(std::string const &PythonData,
                                       std::string const &PythonDtype,
-                                      bool const FortranOrder) {
+                                      Npy::Order_t const Order) {
   auto const FileName = std::filesystem::temp_directory_path() /
                         ("tnpy.test." + std::to_string(rand()) + ".npy");
   std::array<char, 256> Command;
@@ -37,7 +37,7 @@ std::filesystem::path generateNpyFile(std::string const &PythonData,
           "python3 -c \"import numpy; "
           "numpy.save('%s',numpy.array(%s,numpy.dtype('%s'),order='%s'))\"",
           FileName.c_str(), PythonData.c_str(), PythonDtype.c_str(),
-          FortranOrder ? "F" : "C");
+          Order == Npy::Order_t::Fortran ? "F" : "C");
       Result < 0 or Result >= static_cast<decltype(Result)>(Command.size())) {
     throw std::runtime_error("Failed to assemble command");
   }
@@ -49,11 +49,14 @@ std::filesystem::path generateNpyFile(std::string const &PythonData,
 
 template <typename T>
 bool compare(Npy const &Instance, Npy::shape_t const &Shape,
-             std::vector<T> const &Data) {
+             std::vector<T> const &Data, Npy::Order_t const Order) {
   if (Shape != Instance.shape())
     return false;
   if (not std::equal(begin(Data), end(Data), Instance.data<T>()))
     return false;
+  if (Order != Instance.order())
+    return false;
+
   return true;
 }
 
@@ -87,23 +90,27 @@ template <typename T> constexpr std::string_view cppTypeToDtype() {
 template <typename Type> bool isFailed() {
   auto const DtypeStr = std::string(cppTypeToDtype<Type>());
   for (auto const &Config : {
-           TestConfiguration<Type>{DtypeStr, "1", {1}, {1}, false},
-           TestConfiguration<Type>{DtypeStr, "[]", {0}, {}, false},
-           TestConfiguration<Type>{DtypeStr, "[[]]", {1, 0}, {}, false},
+           TestConfiguration<Type>{DtypeStr, "1", {1}, {1}, Npy::Order_t::C},
+           TestConfiguration<Type>{DtypeStr, "[]", {0}, {}, Npy::Order_t::C},
            TestConfiguration<Type>{
-               DtypeStr, "[[1], [1]]", {2, 1}, {1, 1}, false},
+               DtypeStr, "[[]]", {1, 0}, {}, Npy::Order_t::C},
            TestConfiguration<Type>{
-               DtypeStr, "[[1, 1], [0, 1]]", {2, 2}, {1, 0, 1, 1}, true},
+               DtypeStr, "[[1], [1]]", {2, 1}, {1, 1}, Npy::Order_t::C},
+           TestConfiguration<Type>{DtypeStr,
+                                   "[[1, 1], [0, 1]]",
+                                   {2, 2},
+                                   {1, 0, 1, 1},
+                                   Npy::Order_t::Fortran},
        }) {
 
-    auto FileName = generateNpyFile(Config.PythonData, Config.PythonDType,
-                                    Config.FortranOrder);
+    auto FileName =
+        generateNpyFile(Config.PythonData, Config.PythonDType, Config.Order);
     std::ifstream Stream(FileName, std::ios::binary);
     auto NpyInstance = Npy(Stream);
     Stream.close();
     std::filesystem::remove(FileName);
 
-    if (not compare(NpyInstance, Config.Shape, Config.Data)) {
+    if (not compare(NpyInstance, Config.Shape, Config.Data, Config.Order)) {
       failure<Type>();
       return true;
     }

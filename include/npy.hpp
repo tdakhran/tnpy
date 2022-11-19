@@ -15,9 +15,14 @@ public:
   using shape_t = std::vector<uint32_t>;
   using buffer_t = std::unique_ptr<std::byte, std::function<void(void *)>>;
 
+  enum class Order_t { // NOLINT
+    C,
+    Fortran,
+  };
+
   explicit Npy(std::istream &Stream);
 
-  bool isFortranOrder() const;
+  Order_t order() const;
 
   dtype_t dtype() const;
 
@@ -38,7 +43,7 @@ private:
 private:
   dtype_t DType;
   shape_t Shape;
-  bool FortranOrder;
+  Order_t Order;
   buffer_t Buffer;
 };
 

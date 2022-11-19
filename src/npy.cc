@@ -74,7 +74,7 @@ bool parseFortranOrder(std::string_view const &Value) {
 }
 
 void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
-                     bool &FortranOrder, Npy::shape_t &Shape) {
+                     Npy::Order_t &Order, Npy::shape_t &Shape) {
   std::regex const BaseRegex(
       R"(\{'descr':\s'[|<]([bfiu][1248])',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s}\s*)");
 
@@ -83,7 +83,8 @@ void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
     throw std::runtime_error("Failed to parse header data");
 
   DataType = parseDType(BaseMatch[1].str());
-  FortranOrder = parseFortranOrder(BaseMatch[2].str());
+  Order = parseFortranOrder(BaseMatch[2].str()) ? Npy::Order_t::Fortran
+                                                : Npy::Order_t::C;
   Shape = parseShape(BaseMatch[3].str());
 }
 
@@ -99,11 +100,11 @@ Npy::Npy(std::istream &Stream) {
   if (not isLittleEndian())
     throw std::runtime_error("Only little endian is supported atm");
 
-  parseHeaderData(parseHeader(Stream), DType, FortranOrder, Shape);
+  parseHeaderData(parseHeader(Stream), DType, Order, Shape);
   populateArrayData(Stream);
 }
 
-bool Npy::isFortranOrder() const { return FortranOrder; }
+Npy::Order_t Npy::order() const { return Order; }
 
 Npy::dtype_t Npy::dtype() const { return DType; }
 
