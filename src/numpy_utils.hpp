@@ -1,6 +1,7 @@
 #pragma once
 #include "npy.hpp"
 
+#include <complex>
 #include <numeric>
 #include <regex>
 
@@ -73,33 +74,54 @@ struct Shape {
   }
 };
 
-struct DType {
-  static inline constexpr auto SupportedDTypes = {
-      std::pair("b1", Npy::dtype_t(bool())),
-      std::pair("f4", Npy::dtype_t(float())),
-      std::pair("f8", Npy::dtype_t(double())),
-      std::pair("i1", Npy::dtype_t(int8_t())),
-      std::pair("i2", Npy::dtype_t(int16_t())),
-      std::pair("i4", Npy::dtype_t(int32_t())),
-      std::pair("i8", Npy::dtype_t(int64_t())),
-      std::pair("u1", Npy::dtype_t(uint8_t())),
-      std::pair("u2", Npy::dtype_t(uint16_t())),
-      std::pair("u4", Npy::dtype_t(uint32_t())),
-      std::pair("u8", Npy::dtype_t(uint64_t())),
-  };
+// clang-format off
+template <typename> struct CType;
+template <> struct CType<                 bool > { static inline constexpr auto Py =  "b1"; };
+template <> struct CType<                float > { static inline constexpr auto Py =  "f4"; };
+template <> struct CType<               double > { static inline constexpr auto Py =  "f8"; };
+template <> struct CType<               int8_t > { static inline constexpr auto Py =  "i1"; };
+template <> struct CType<              int16_t > { static inline constexpr auto Py =  "i2"; };
+template <> struct CType<              int32_t > { static inline constexpr auto Py =  "i4"; };
+template <> struct CType<              int64_t > { static inline constexpr auto Py =  "i8"; };
+template <> struct CType<              uint8_t > { static inline constexpr auto Py =  "u1"; };
+template <> struct CType<             uint16_t > { static inline constexpr auto Py =  "u2"; };
+template <> struct CType<             uint32_t > { static inline constexpr auto Py =  "u4"; };
+template <> struct CType<             uint64_t > { static inline constexpr auto Py =  "u8"; };
+template <> struct CType<  std::complex<float> > { static inline constexpr auto Py =  "c8"; };
+template <> struct CType< std::complex<double> > { static inline constexpr auto Py = "c16"; };
+// clang-format on
 
-  static std::string toString(Npy::dtype_t const &In) {
-    for (auto const &[DTypeStr, DType] : SupportedDTypes)
-      if (DType == In)
-        return DTypeStr;
-    throw std::runtime_error("Failed to convert dtype");
+struct DType {
+  template <typename Func, typename... Types>
+  static void iterTypes(Func F, std::variant<Types...>) {
+    std::apply([&F](Types... Args) { return ((F(Args)), ...); },
+               std::tuple<Types...>());
   }
 
-  static Npy::dtype_t fromString(std::string const &In) {
-    for (auto const &[DTypeStr, DType] : SupportedDTypes)
-      if (DTypeStr == In)
-        return DType;
-    throw std::runtime_error("Failed to convert dtype");
+  static std::string from(Npy::dtype_t const &In) {
+    return std::visit([](auto Arg) { return CType<decltype(Arg)>::Py; }, In);
+  }
+
+  static Npy::dtype_t from(std::string const &In) {
+    Npy::dtype_t Result;
+    iterTypes(
+        [&In, &Result](auto Arg) {
+          if (In == CType<decltype(Arg)>::Py)
+            Result = Npy::dtype_t(decltype(Arg)());
+        },
+        Npy::dtype_t());
+    return Result;
+  }
+
+  static std::string generatePyTypesRegex() {
+    std::vector<std::string> PyTypes;
+    iterTypes(
+        [&PyTypes](auto Arg) { PyTypes.push_back(CType<decltype(Arg)>::Py); },
+        Npy::dtype_t());
+    return std::accumulate(begin(PyTypes), end(PyTypes), std::string(),
+                           [](auto &Acc, auto const &V) {
+                             return Acc.empty() ? V : (Acc + "|" + V);
+                           });
   }
 
   static size_t elementSize(Npy::dtype_t const &DType) {

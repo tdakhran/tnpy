@@ -31,13 +31,14 @@ std::string parseHeader(std::istream &Stream) {
 void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
                      Npy::DataOrder &Order, Npy::shape_t &Shape) {
   std::regex const BaseRegex(
-      R"(\{'descr':\s'[|<]([bfiu][1248])',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s}\s*)");
+      R"(\{'descr':\s'[|<]()" + utils::DType::generatePyTypesRegex() +
+      R"()',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s}\s*)");
 
   std::smatch BaseMatch;
   if (!std::regex_match(HeaderData, BaseMatch, BaseRegex))
     throw std::runtime_error("Failed to parse header data");
 
-  DataType = utils::DType::fromString(BaseMatch[1].str());
+  DataType = utils::DType::from(BaseMatch[1].str());
   Order = utils::DataOrder::fromString(BaseMatch[2].str());
   Shape = utils::Shape()(BaseMatch[3].str());
 }
@@ -110,7 +111,7 @@ std::ostream &tnpy::operator<<(std::ostream &Stream, tnpy::Npy const &Object) {
 
   // clang-format off
   auto DictStr = std::string("{")
-        + "'descr': '" + EndianChar + utils::DType::toString(Object.dtype()) + "', "
+        + "'descr': '" + EndianChar + utils::DType::from(Object.dtype()) + "', "
         + "'fortran_order': " + (Object.order() == Npy::DataOrder::Fortran ? "True" : "False") + ", "
         + "'shape': (" + utils::Shape()(Object.shape()) + "), "
         + "}\n";

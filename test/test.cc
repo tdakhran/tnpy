@@ -45,15 +45,15 @@ std::filesystem::path generateNpyFile(std::string const &PythonData,
 }
 
 template <typename Type> bool isFailed() {
-  auto const DtypeStr = utils::DType::toString(Npy::dtype_t(Type()));
+  auto const PyType = utils::DType::from(Npy::dtype_t(Type()));
   for (auto const &Config : {
-           TestConfiguration<Type>{DtypeStr, "1", {1}, {1}, Npy::DataOrder::C},
-           TestConfiguration<Type>{DtypeStr, "[]", {0}, {}, Npy::DataOrder::C},
+           TestConfiguration<Type>{PyType, "1", {1}, {1}, Npy::DataOrder::C},
+           TestConfiguration<Type>{PyType, "[]", {0}, {}, Npy::DataOrder::C},
            TestConfiguration<Type>{
-               DtypeStr, "[[]]", {1, 0}, {}, Npy::DataOrder::C},
+               PyType, "[[]]", {1, 0}, {}, Npy::DataOrder::C},
            TestConfiguration<Type>{
-               DtypeStr, "[[1], [1]]", {2, 1}, {1, 1}, Npy::DataOrder::C},
-           TestConfiguration<Type>{DtypeStr,
+               PyType, "[[1], [1]]", {2, 1}, {1, 1}, Npy::DataOrder::C},
+           TestConfiguration<Type>{PyType,
                                    "[[1, 1], [0, 1]]",
                                    {2, 2},
                                    {1, 0, 1, 1},
