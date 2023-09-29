@@ -77,6 +77,7 @@ struct Shape {
 // clang-format off
 template <typename> struct CType;
 template <> struct CType<                 bool > { static inline constexpr auto Py =  "b1"; };
+template <> struct CType<             _Float16 > { static inline constexpr auto Py =  "f2"; };
 template <> struct CType<                float > { static inline constexpr auto Py =  "f4"; };
 template <> struct CType<               double > { static inline constexpr auto Py =  "f8"; };
 template <> struct CType<               int8_t > { static inline constexpr auto Py =  "i1"; };

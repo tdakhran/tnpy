@@ -11,9 +11,10 @@ namespace tnpy {
 
 class Npy {
 public:
-  using dtype_t = std::variant<bool, float, double, uint8_t, int8_t, uint16_t,
-                               int16_t, uint32_t, int32_t, uint64_t, int64_t,
-                               std::complex<float>, std::complex<double>>;
+  using dtype_t =
+      std::variant<bool, _Float16, float, double, uint8_t, int8_t, uint16_t,
+                   int16_t, uint32_t, int32_t, uint64_t, int64_t,
+                   std::complex<float>, std::complex<double>>;
   using shape_t = std::vector<uint32_t>;
   using buffer_t = std::unique_ptr<std::byte, std::function<void(void *)>>;
 
