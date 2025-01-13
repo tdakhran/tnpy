@@ -47,6 +47,8 @@ public:
 
   void const *ptr() const;
 
+  size_t bytes() const;
+
   shape_t const &shape() const;
 
   bool operator==(const Npy &Rhs) const;
@@ -61,6 +63,7 @@ private:
   shape_t Shape;
   DataOrder Order;
   buffer_t Buffer;
+  size_t NBytes;
 };
 
 std::ostream &operator<<(std::ostream &, tnpy::Npy const &);
