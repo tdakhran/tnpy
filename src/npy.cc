@@ -32,7 +32,7 @@ void parseHeaderData(std::string const &HeaderData, Npy::dtype_t &DataType,
                      Npy::DataOrder &Order, Npy::shape_t &Shape) {
   std::regex const BaseRegex(
       R"(\{'descr':\s'[|<]()" + utils::DType::generatePyTypesRegex() +
-      R"()',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s}\s*)");
+      R"()',\s'fortran_order':\s(True|False),\s'shape':\s([()0-9,\s]+),\s\}\s*)");
 
   std::smatch BaseMatch;
   if (!std::regex_match(HeaderData, BaseMatch, BaseRegex))
