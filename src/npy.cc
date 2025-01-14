@@ -84,9 +84,9 @@ void Npy::populateArrayData(std::istream &Stream) {
 size_t Npy::allocateBuffer() {
   auto const [ElementsCount, ElementSize] = calculateSizes(Shape, DType);
   NBytes = ElementsCount * ElementSize;
-  Buffer = Npy::buffer_t(
-      reinterpret_cast<std::byte *>(std::aligned_alloc(ElementSize, NBytes)),
-      std::free);
+  using buffer_element_type = decltype(Buffer)::element_type;
+  Buffer = std::make_unique<buffer_element_type[]>(
+      (NBytes + sizeof(buffer_element_type) - 1) / sizeof(buffer_element_type));
   return NBytes;
 }
 
