@@ -94,8 +94,8 @@ size_t Npy::bytes() const { return NBytes; }
 
 bool Npy::operator==(const Npy &Rhs) const {
   auto const [ElementsCount, ElementSize] = calculateSizes(Shape, DType);
-  return std::tie(DType, Order, Shape) ==
-             std::tie(Rhs.DType, Rhs.Order, Rhs.Shape) &&
+  return DType.index() == Rhs.DType.index() &&
+         std::tie(Order, Shape) == std::tie(Rhs.Order, Rhs.Shape) &&
          std::memcmp(ptr(), Rhs.ptr(), ElementsCount * ElementSize) == 0;
 }
 
