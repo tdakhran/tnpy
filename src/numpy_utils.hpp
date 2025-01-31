@@ -1,6 +1,7 @@
 #pragma once
 #include "npy.hpp"
 
+#include <array>
 #include <complex>
 #include <numeric>
 #include <regex>
@@ -30,7 +31,8 @@ struct DataOrder {
 
 struct MagicAndVersion {
   // https://numpy.org/devdocs/reference/generated/numpy.lib.format.html#format-version-1-0
-  static constexpr inline uint64_t ExpectedMagic = 0x59504d554e93;
+  static constexpr inline std::array<uint8_t, 6> ExpectedMagic = {
+      0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59};
   static constexpr inline uint64_t ExpectedVersionMajor = 1;
   static constexpr inline uint64_t ExpectedVersionMinor = 0;
 
@@ -46,10 +48,11 @@ struct MagicAndVersion {
       throw std::runtime_error("Only version 1.x supported");
   }
 
-  uint64_t Magic : 48;
+  std::array<uint8_t, 6> Magic;
   uint8_t VersionMajor;
   uint8_t VersionMinor;
 };
+static_assert(sizeof(MagicAndVersion) == 8);
 
 struct Shape {
   Npy::shape_t operator()(std::string const &ShapeStr) {
