@@ -116,7 +116,7 @@ std::ostream &tnpy::operator<<(std::ostream &Stream, tnpy::Npy const &Object) {
         + "'descr': '" + EndianChar + utils::DType::from(Object.dtype()) + "', "
         + "'fortran_order': " + (Object.order() == Npy::DataOrder::Fortran ? "True" : "False") + ", "
         + "'shape': (" + utils::Shape()(Object.shape()) + "), "
-        + "}\n";
+        + "}";
   // clang-format on
 
   while ((sizeof(MagicAndVersion) + sizeof(uint16_t) + DictStr.size()) %
